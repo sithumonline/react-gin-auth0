@@ -19,14 +19,14 @@ const Content = () => {
       }
 
       const IdToken = await getIdTokenClaims();
-      const { __raw, sub } = IdToken;
+      const { __raw, email } = IdToken;
 
-      const currentSub = localStorage.getItem("sub");
+      const currentEmail = localStorage.getItem("email");
 
       const { apiOrigin = "http://localhost:3001" } = getConfig;
 
-      if (currentSub && currentSub == sub) {
-        const res = await fetch(`${apiOrigin}/api/v1/user?sub=${sub}`, {
+      if (currentEmail && currentEmail == email) {
+        const res = await fetch(`${apiOrigin}/api/v1/user?email=${email}`, {
           method: "GET",
         });
 
@@ -41,7 +41,7 @@ const Content = () => {
         return;
       }
 
-      localStorage.setItem("sub", sub);
+      localStorage.setItem("email", email);
 
       const res = await fetch(`${apiOrigin}/api/v1/auth0?token=${__raw}`, {
         method: "GET",

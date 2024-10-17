@@ -81,6 +81,16 @@ func main() {
 			return
 		}
 
+		email, ok := profile["email"].(string)
+		if !ok {
+			ctx.String(http.StatusInternalServerError, "Failed to get email from profile.")
+			return
+		}
+
+		// you can use this email to get the user info from the database
+		// if the user is not in the database, you can create a new user
+		fmt.Println("Email", email)
+
 		ctx.JSON(http.StatusOK, gin.H{
 			"profile": profile,
 		})
