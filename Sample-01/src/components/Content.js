@@ -22,6 +22,9 @@ const Content = () => {
       const { __raw, sub } = IdToken;
 
       const currentSub = localStorage.getItem("sub");
+
+      const { apiOrigin = "http://localhost:3001" } = getConfig;
+
       if (currentSub && currentSub == sub) {
         const res = await fetch(`${apiOrigin}/api/v1/user?sub=${sub}`, {
           method: "GET",
@@ -40,7 +43,6 @@ const Content = () => {
 
       localStorage.setItem("sub", sub);
 
-      const { apiOrigin = "http://localhost:3001" } = getConfig;
       const res = await fetch(`${apiOrigin}/api/v1/auth0?token=${__raw}`, {
         method: "GET",
       });
