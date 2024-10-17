@@ -12,32 +12,41 @@ const Content = () => {
   const { isAuthenticated, getIdTokenClaims } = useAuth0();
 
   useEffect(() => {
-    const sub = localStorage.getItem("sub");
-    if (sub) {
-      // if we have the sub in localStorage, we don't need to fetch the token again
-      // we can use the sub to identify the user
-      console.log(`sub: ${sub}`);
-      return;
-    }
-
     const fetchIdToken = async () => {
-      if (isAuthenticated) {
-        const IdToken = await getIdTokenClaims();
-        const { __raw, sub } = IdToken;
-        if (!__raw) {
-          return;
-        }
+      if (!isAuthenticated) {
+        console.error("User is not authenticated");
+        return;
+      }
 
-        localStorage.setItem("sub", sub);
+      const IdToken = await getIdTokenClaims();
+      const { __raw, sub } = IdToken;
 
-        const { apiOrigin = "http://localhost:3001" } = getConfig;
-        const res = await fetch(`${apiOrigin}/api/v1/auth0?token=${__raw}`, {
+      const currentSub = localStorage.getItem("sub");
+      if (currentSub && currentSub == sub) {
+        const res = await fetch(`${apiOrigin}/api/v1/user?sub=${sub}`, {
           method: "GET",
         });
 
         if (res.status === 200) {
           console.log("Successfully authenticated with the API");
         }
+
+        return;
+      }
+
+      if (!__raw) {
+        return;
+      }
+
+      localStorage.setItem("sub", sub);
+
+      const { apiOrigin = "http://localhost:3001" } = getConfig;
+      const res = await fetch(`${apiOrigin}/api/v1/auth0?token=${__raw}`, {
+        method: "GET",
+      });
+
+      if (res.status === 200) {
+        console.log("Successfully authenticated with the API");
       }
     };
 
