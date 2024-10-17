@@ -62,7 +62,7 @@ func main() {
 
 		ctx.JSON(http.StatusOK, claims)
 	})
-	router.GET("/api/v1/auth0", func(ctx *gin.Context) {
+	router.GET("/api/v1/oauth/auth0", func(ctx *gin.Context) {
 		token := ctx.Query("token")
 		if token == "" {
 			ctx.JSON(http.StatusBadRequest, "No token provided")

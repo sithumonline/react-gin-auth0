@@ -43,7 +43,7 @@ const Content = () => {
 
       localStorage.setItem("email", email);
 
-      const res = await fetch(`${apiOrigin}/api/v1/auth0?token=${__raw}`, {
+      const res = await fetch(`${apiOrigin}/api/v1/oauth/auth0?token=${__raw}`, {
         method: "GET",
       });
 
