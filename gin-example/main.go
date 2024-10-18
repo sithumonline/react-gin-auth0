@@ -5,20 +5,31 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"example.com/gin/hello"
+	"github.com/Nerzal/gocloak/v13"
 	jwtmiddleware "github.com/auth0/go-jwt-middleware/v2"
 	"github.com/auth0/go-jwt-middleware/v2/validator"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt"
 )
 
 var (
 	domain = ""
 	client = ""
+
+	kc_domain   = ""
+	kc_user     = ""
+	kc_password = ""
+	kc_realm    = ""
+	kc_client   = ""
 )
+
+var kd_instance = gocloak.NewClient(kc_domain)
 
 func main() {
 	provider, err := oidc.NewProvider(
@@ -42,6 +53,12 @@ func main() {
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
+
+	token, err := kd_instance.LoginAdmin(context.Background(), kc_user, kc_password, kc_realm)
+	if err != nil {
+		log.Fatalf("Failed to login: %v", err)
+	}
+
 	router.GET("/api/external", hello.CheckJWT(), func(ctx *gin.Context) {
 		claims, ok := ctx.Request.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
 		if !ok {
@@ -95,10 +112,79 @@ func main() {
 			"profile": profile,
 		})
 	})
+	router.POST("/api/v1/user", func(ctx *gin.Context) {
+		// get the user request body
+		var user map[string]interface{}
+		if err := ctx.BindJSON(&user); err != nil {
+			ctx.JSON(http.StatusBadRequest, "Invalid request body")
+			return
+		}
 
-	log.Print("Server listening on http://localhost:3001")
-	if err := http.ListenAndServe("0.0.0.0:3001", router); err != nil {
+		fmt.Println("User", user)
+
+		userId, ok := user["userId"].(string)
+		if !ok {
+			ctx.JSON(http.StatusBadRequest, "Invalid user id")
+			return
+		}
+
+		userInfo, err := kd_instance.GetUserByID(ctx.Request.Context(), token.AccessToken, kc_realm, userId)
+		if err != nil {
+			ctx.JSON(http.StatusInternalServerError, "Failed to get user info")
+			return
+		}
+
+		fmt.Println("UserInfo", userInfo)
+
+		// send the user info as a response
+		ctx.JSON(http.StatusOK, gin.H{
+			"user": user,
+			"info": userInfo,
+		})
+	})
+	router.GET("/api/test-auth", KeycloakJWTMiddleware2(), func(ctx *gin.Context) {
+		claims := ctx.MustGet("claims").(jwt.MapClaims)
+		ctx.JSON(http.StatusOK, gin.H{
+			"message": "You are authorized",
+			"claims":  claims,
+		})
+	})
+
+	log.Print("Server listening on http://localhost:3002")
+	if err := http.ListenAndServe("0.0.0.0:3002", router); err != nil {
 		log.Fatalf("There was an error with the http server: %v", err)
 	}
 
+}
+
+func KeycloakJWTMiddleware2() gin.HandlerFunc {
+	//kd_instance := gocloak.NewClient(kc_domain)
+	issuerInfo, err := kd_instance.GetIssuer(context.Background(), kc_realm)
+	if err != nil {
+		log.Fatalf("Failed to get Keycloak public key: %v", err)
+	}
+	publicKey := *issuerInfo.PublicKey
+
+	return func(ctx *gin.Context) {
+		authHeader := ctx.GetHeader("Authorization")
+		if authHeader == "" {
+			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "Authorization header is missing"})
+			return
+		}
+
+		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+		claims := jwt.MapClaims{}
+		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+			base64Data := []byte("-----BEGIN PUBLIC KEY-----\n" + publicKey + "\n-----END PUBLIC KEY-----")
+			return jwt.ParseRSAPublicKeyFromPEM(base64Data)
+		})
+
+		if err != nil || !token.Valid {
+			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "Invalid token", "error": err.Error()})
+			return
+		}
+
+		ctx.Set("claims", claims)
+		ctx.Next()
+	}
 }
